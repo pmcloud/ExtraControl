@@ -1,0 +1,19 @@
+#!/bin/sh
+
+. /etc/rc.subr
+
+# for FreeNAS
+PATH=$PATH:/usr/local/bin
+
+name=serclient
+pidfile=/var/run/serclient.pid
+# use SIGKILL to work-around threading/subprocess interaction: child
+# processes are spawned with all signals masked
+sig_stop=KILL
+serclient_flags="--daemon --pid /var/run/serclient.pid --log /var/log/serclient.log --port /dev/cuau1 &"
+
+command="/usr/local/serclient/service.py"
+command_interpreter="python"
+
+load_rc_config $name
+run_rc_command "$1"

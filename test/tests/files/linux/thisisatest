@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo '<test>this is a test</test>'
+exit 0

@@ -1,0 +1,7 @@
+#!/bin/sh
+echo -n "<test>"
+while test "$#" != 0; do
+echo -n "<arg>$1</arg>"
+shift
+done
+echo "</test>"

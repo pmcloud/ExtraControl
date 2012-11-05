@@ -1,0 +1,4 @@
+#!/bin/sh
+
+insserv -r serclient
+/etc/init.d/serclient stop

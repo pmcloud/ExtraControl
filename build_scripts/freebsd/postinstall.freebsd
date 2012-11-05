@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# for FreeNAS
+if test -f /conf/base/etc/local/rc.d/serclient; then
+    cp /conf/base/etc/local/rc.d/serclient /usr/local/etc/rc.d/serclient
+
+    if ! grep -q /usr/local/etc/rc.d/serclient /conf/base/etc/rc.local; then
+        echo '' >> /conf/base/etc/rc.local
+        echo '/usr/local/etc/rc.d/serclient start' >> /conf/base/etc/rc.local
+    fi
+fi
+
+/usr/local/etc/rc.d/serclient restart

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if initctl status serclient | grep -q stop/waiting; then
+    initctl start serclient
+else
+    initctl restart serclient
+fi

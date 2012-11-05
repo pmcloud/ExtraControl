@@ -1,0 +1,73 @@
+Ubuntu
+------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file aruba-serclient_0.01-1_all.deb
+
+1) aprire una shell e dare il comando
+
+dpkg -i /il/mio/path/aruba-serclient_0.01-1_all.deb
+
+
+Centos
+------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file aruba-serclient-0.01-1.noarch.rpm
+
+1) aprire una shell e dare il comando
+
+rpm --force -i --oldpackage aruba-serclient-0.01-1.noarch.rpm
+
+Windows
+-------
+
+- Richiede di essere utente Administrator
+- Richiede che l'utente abbia scaricato in locale il file setup.exe
+
+eseguire setup.exe
+
+Nota: la procedura non richiede nessuna scelta da parte dell'utente e' un normale installer che chiede solo la conferma iniziale ed in caso di errori abortisce.
+
+Openfiler
+---------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file openfiler-0.01.tar.gz
+
+1) aprire una shell e dare il comando
+
+tar -C / -x -z -f openfiler-0.01.tar.gz && chkconfig --add serclient && /etc/init.d/serclient restart
+
+Freenas
+-------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file aruba-serclient-0.01.tbz
+
+1) aprire una shell e dare i comandi
+
+mount -uw /
+
+pkg_add -f aruba-serclient-0.01.tbz
+
+PFSense
+-------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file aruba-serclient-0.01.tbz
+
+1) aprire una shell e se compare il menu di scelte di PFSense selezionare "SHELL", poi dare il comando
+
+pkg_add -f aruba-serclient-0.01.tbz
+
+Endian
+------
+
+- Richiede di essere utente con permessi root
+- Richiede che l'utente abbia scaricato in locale il file aruba-serclient-0.01-1.noarch.rpm
+
+1) aprire una shell e dare il comando
+
+rpm --force -i --oldpackage aruba-serclient-0.01-1.noarch.rpm
+

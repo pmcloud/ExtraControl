@@ -1,0 +1,290 @@
+Questa guida si divide in piu' parti:
+
+1) come sviluppare serclient
+2) note per debug locale dei comandi sulla seriale: configurare due vm locali e come testare l'intero servizio
+3) come testare automaticamente un ambiente aruba di vm con serclient configurato
+4) come eseguire il build finale per ottenere un installer windows ed i pacchetti per le varie piattaforme
+
+----
+Come sviluppare serclient: configurazione ambiente di sviluppo
+----
+
+serclient ha innanzitutto bisogno di un environment python funzionante, le dipendenze sono
+
+1) python >= 2.4 (il 3.x non e' supportato)
+http://www.python.org/download/
+
+2) windows: pywin32 
+http://starship.python.net/crew/mhammond/win32/Downloads.html
+
+3) windows: pywmi
+http://timgolden.me.uk/python/wmi/index.html
+
+*Se si vuole eseguire la test suite servono anche*
+
+4) ez_setup
+windows: http://pypi.python.org/pypi/setuptools#files
+*unix: installare il pacchetto tramite il packet manager di sistema
+
+5) fabric:
+windows: c:\python2.7\scripts\easy_install.exe fabric
+*nix: installare il pacchetto tramite il packet manager di sistema
+
+Nota di sviluppo:
+
+i file sorgenti python usano i tab 4 per l'indentazione, per evitare errori di parsing dovuti all'indentazione si raccomanda di configurare il proprio editor perche' usi i tab.
+
+----
+Come sviluppare serclient: i file sorgenti
+----
+
+Per tutte le piattaforme serclient e' diviso in due moduli principali:
+
+- service.py 
+
+contiene la logica relativa alla gestione del protocollo seriale e lo spawn dei processi collegati ai comandi, offre anche un interfaccia a riga di comando in quanto e' l'entry point principale dei client per ambiente *unix. Si vuole modificare questo file nel caso si voglia cambiare il protocollo di trasmissione, inteso sia come pacchetti binari che come gestione dell'xml.
+
+- tools.py
+
+contiene la logica relativa alla gestione di moduli dei comandi (fondamentalmente dove sono sul file system) e varie funzioni per la gestione dell'ambiente a run-time tra cui la gestone della configurazione da file ini e logging. Principalmente si vuole modificare questo file nel caso si voglia cambiare la logica legata alla ricerca dei moduli.
+
+Nello specifico per windows:
+
+- WindowsService.py
+
+contiene la logica necessaria a far eseguire service.py come Windows Service nativo. Offre quindi la possibilita' di installare service.py come servizio trai servizi di sistema, eseguirlo e fermarlo. Si vuole modificare questo file nel caso si voglia configurare la parte di avvio e stop del servizio o aggiungere dei moduli che sono richiesti dai plugin per funzionare. Questo perche' una volta eseguito il deploy i moduli non importati da WindowsService non sono accessibili.
+
+----
+Come sviluppare serclient: l'integrazione con i moduli
+----
+
+I moduli richiamabili tramite i comandi si dividono in 3 tipologie:
+
+- internals
+
+sono i moduli legati al comando restart e modulemng.
+I moduli all'interno di questa cartella non possono essere aggiornati singolarmente ma sono da includersi con un aggiornamento del software del servizio. Potrebbero esser considerati hard-codati anche se per pulizia di sviluppo risiedono in una loro sotto cartella internals.
+
+- plugins
+
+sono i moduli dei comandi principali.
+Questi possono essere aggiornati singolarmente
+
+- usermodules
+
+sono i moduli che l'utente puo' aggiungere alla propria installazione.
+Questi moduli possono essere aggiunti, rimossi od eseguiti tramite il modulo plugin script.
+
+Nota di sviluppo per Windows:
+questi moduli importano le loro dipendenze, ATTENZIONE, quando si crea l'installer per Windows tramite pyinstaller le dipendenze di questi moduli non sono prese in considerazione e' per tanto necessario che qualunque modulo importato da ognuno di loro sia presente anche nella lista dei moduli importati da WindowsService.py
+
+----
+Come sviluppare serclient: i moduli, path, versione e blocking
+----
+
+I moduli sono cercati all'interno delle tre sotto cartelle internals, plugins, usermodules.
+All'interno di tools.py sono hard-codati per i comandi dichiarati nelle specificihe il legame con il corrispettivo script python, ad esempio:
+
+modulemng -> internals/modulemng.py
+updateSoftware -> plugins/updateSoftware.py
+
+La ricerca dei moduli utente invece avviene considerando il basename del comando per cui se viene mandato il comando:
+
+exec usermodules foo.py
+
+il sistema cerchera' 
+
+usermodules/foo.py
+
+- versione del modulo:
+
+la versione del singolo modulo viene conservata all'interno di un file separato che ha come basename il nome del modulo stesso con prefisso '.version', ad esempio:
+
+systemStatus -> [riferimento hard-codato] plugins/systemStatus.py -> plugins/systemStatus.py.version
+
+- modulo bloccante:
+
+i moduli bloccanti sono quelli che devono essere eseguiti quando nessun'altro comando viene eseguito, come ad esempio l'aggiornamento del software. Per sapere se un comando e' bloccante il sistema cerca un file con basename il nomde del modulo stesso con prefisso '.blocking', ad esempio
+
+updateModule -> [riferimento hard-codato] plugins/updateModule.py -> plugins/updateModulde.py.blocking
+
+----
+Come sviluppare serclient: l'esecuzione dei moduli a run-time
+----
+
+Una volta che viene richiesto un comando, il sistema cerca nelle cartelle il relativo file python associato quando lo trova sa che puo' essere eseguito.
+All'interno di service.py succede questo:
+
+1) viene creato un thread con oggetto di tipo CommandObserver il cui metodo run viene eseguito nel thread stesso
+
+2) durante il run viene ricavato il path completo al modulo del comando, di base e' relativo alla posizione di service.py ma puo' essere configurato nel file .INI. 
+
+es: Viene richiesto "updateSoftware 2.0" (nota da specifiche il contenuto con il quale eseguire l'aggiornamento viene passato come binaryData nell xml della richiesta)
+
+dal nome del comando il servizio ricava 
+
+/opt/serclient/internals/updateSoftware.py 
+
+i parametri passati con la richiesta vengono aggiunti e, come in questo caso, nel caso nella richiesta e' presente anche un tag binaryData viene aggiunto come ultimo parametro il path al file temporaneo in cui e' stato salvato il base64 decondificato.
+
+il risultato e' quindi questa riga di comando
+
+/opt/serclient/internals/updateSoftware.py 1.0 /temp/temp123.tar.gz
+
+3) siccome su windows non e' richiesto che l'utente abbia installato python l'esecuzione del comando fallirebbe. Per questo service.py puo' comportarsi come interprete usando il parametro --exec, pertanto il comando finale espanso dal servizio diventa:
+
+/opt/serclient/service.py --exec /opt/serclient/internals/updateSoftware.py 1.0 /temp/temp123.tar.gz
+
+dettaglio WindowsService: 
+quando il servizio diventa un eseguibile e viene installato il path ovviamente e' quello a serclient.exe e non a service.py
+
+dettaglio implementativo: 
+per questione di API python, il comando di cui sopra viene eseguito in maniera bloccante su un ulteriore thread separato: alla fine l'error code, lo std output e lo std error vengono raccolti e salvati da parte
+
+4) nel frattempo il thread CommandObserver tiene conto del tempo trascorso dall'avvio del processo. Se l'esecuzione e' superiore ad un timeout (specificabile sia per comando nel file .INI o genericamente) il servizio termina l'esecuzione del processo e la risposta che poi andra' a dare sara' di tipo Timeout, altrimenti sara' data in base al tipo di error code che il comando ha restituito. La fase di risposta del protocollo prevede che sia il servizio a mandare prima un AUTH_RESPONSE a cui deve seguire la ricezione di un altro AUTH_RESPONSE da parte del sistema centrale, solo in tal caso il servizioo manda un pacchetto di tipo RESPONSE.
+
+----
+Note per debug locale dei comandi sulla seriale: configurare due vm locali e come testare l'intero servizio
+----
+
+Il servizio puo' essere eseguito sia in ascolto (caso classico) per aspettare i comandi eseguirli e mandare la risposta sia in invio per mandare lui delle richieste. In questo modo e' possibile testare localmente l'intero loop del protocollo. Per far cioe e' comunque necessario avere un seriale "virtuale" tramite la quale le due istanze possono collegarsi.
+
+Un modo rapido e' quello di usare VirtualBox per creare due VM, sia windows che unix come preferisce l'utente. Su una si attiva e configura la seriale in modalita' HostPipe marcando l'opzione per creare una PIPE es. \\.\pipe\arubatest e sull'altra si attiva la stessa opzione ma senza creare la PIPE (va comunque specificata). Quando si avviano e' necessario prima avviare la VM che crea la PIPE e successivamente quella a cui si collega, se si sbaglia l'ordine e' probabile che VirtualBox si lamenti della non presenza della PIPE ma non fateci affidamento perche' non sempre accade. Occhio quindi altrimenti rischiate di non vedere mai passare dati sulla seriale virtuale.
+
+Ammettiamo quindi di avere due VM configurate chiamate VM_A e VM_B entrambe con i sorgenti di serclient e le dipendenze installate, per testare il servizio fare:
+
+VM_A in ascolto: ./service.py
+VM_B in invio:   ./service.py --debug-command "osinfo"
+
+VM_A entra in lettura sulla seriale e gestisce il protocollo, VM_B invece manda una richiesta di comando "osinfo" e aspetta che il servizio risponda con RESPONSE e poi esce. E' possibile di conseguenza debuggare se il comando e' stato eseguito oppure il servizio sulla VM_A e' crashato o ha dato problemi.
+
+nota: quando service.py viene eseguito senza parametri apre la seriale di "default" di sistema, che sara' la porta com1 su windows o /dev/ttyS0 su *unix.
+
+----
+Come testare automaticamente un ambiente aruba di vm con serclient configurato
+----
+
+Innanzitutto e' necessario avere l'ambiente configurato (vedi "Come sviluppare serclient: configurazione ambiente di sviluppo").
+La test suite si trova all'interno della cartella test, per eseguirla ed ottenere un elenco delle opzioni si deve entrare in quella cartella e dare il comando:
+
+./python tests --help
+
+----
+Come testare automaticamente un ambiente aruba di vm con serclient configurato: test e hosts
+----
+
+Per ottenere una lista dei test disponibili e degli host testabili 
+
+./python tests --list
+
+Il risultato sara' qualcosa simile:
+
+C:\src\arubasvn\test>c:\Python27\python tests --list
+Tests:
+
+- TestExec
+  - TestExec.testExecArgs
+  - TestExec.testExecInternalModule
+  - TestExec.testExecNoArgs
+  - TestExec.testExecPlugin
+
+- TestModuleLifeCycle
+  - TestModuleLifeCycle.testCustomModuleLifeCycle
+
+- TestModuleMngGet
+  - TestModuleMngGet.testGet
+  - TestModuleMngGet.testGetInvalid
+
+ [...]
+ 
+Hosts:
+
+centos-5.6-64:
+  centos linux 5.6 (64 bit)
+win-2008-64-hv:
+  windows 2008 (64 bit)
+freenas-8.02-64:
+  freenas bsd 8.0.2 (64 bit)
+pfsense-2.01-64:
+  pfsense bsd 2.0.1 (64 bit)
+openfiler-2.99-64:
+  openfiler linux 2.99 (64 bit)
+win-2003-32:
+  windows 2003 (32 bit)
+win-2008-64:
+  windows 2008 (64 bit)
+ubuntu-10-64:
+  ubuntu linux 10.04 (64 bit)
+ 
+La lista degli host e' configurabile modificando il file config\config.ini
+
+----
+Come testare automaticamente un ambiente aruba di vm con serclient configurato: eseguire la testsuite
+----
+
+ATTENZIONE: 
+la testsuite per verificare l'efficacia dei comandi ha bisogno di collegarsi via SSH alle VM, sia quelle *nix che quelle Windows. Su quest'ultime il servizio SSH e' stato configurato usando l'ambiente cygwin, in
+Per questo nella cartella config\keys trovate la chiave pubblica e privata che permette di accedere alle VM senza autenticazione interattiva; se usate Windows come macchina per fare i test allora potete scaricare pagent (della famiglia putty) e aggiungere la chiave .ppk contenuta nella cartella.
+
+Per eseguire la testsuite su tutte le VM configurare in config\config.ini
+
+./python tests --verbose
+
+----
+Come eseguire il build finale per ottenere un installer windows ed i pacchetti per le varie piattaforme: Windows
+----
+
+Prerequisiti: 
+- avere l'ambiente di sviluppo funzionante
+- avere innosetup in c:\Program Files\Inno Setup 5\
+
+entrare nella cartella "build_scripts\windows"
+eseguire:
+
+build.bat
+
+si otterra' nella cartella output i due installer: SetupFull.exe e SetupUpdate.exe
+
+NOTA: lo script di build copia tutti i file contenuti nelle cartelle internals e plugins; pertanto conviene eseguire lo script da un checkout pulito del progetto per evitare di distribuire accidentalmente dei file non necessari.
+
+----
+Come eseguire il build finale per ottenere un installer windows ed i pacchetti per le varie piattaforme: linux (centos, debian, openfiler, ubuntu)
+----
+
+Prerequisiti: 
+- ubuntu natty o successiva
+- avere l'ambiente di sviluppo funzionante
+- avere i seguenti pacchetti installati: fakeroot checkinstall rpm
+
+per installarli dare il comando
+
+sudo apt-get install fakeroot checkinstall rpm
+
+entrare nella cartella "build_scripts/linux" ed eseguire:
+
+./build.sh
+
+i pacchetti creati saranno nelle cartelle 
+
+centos/aruba-serclient-0.01-1.noarch.rpm
+debian/aruba-serclient_0.01-1_all.deb
+ubuntu/openfiler-0.01.tar.gz
+openfiler/aruba-serclient_0.01-1_all.deb
+
+----
+Come eseguire il build finale per ottenere un installer windows ed i pacchetti per le varie piattaforme: freebsd (freenas, pfsense)
+----
+
+Prerequisiti:
+- FreeBSD 8.2-RELEASE-p9 (FREENAS.i386) o successivo 
+
+entrare nella cartella "build_scripts/freebsd" ed eseguire:
+
+./build.sh
+
+i pacchetti creati saranno nelle cartelle 
+
+pfsense/aruba-serclient-0.01.tbz
+freenas/aruba-serclient-0.01.tbz
+
+

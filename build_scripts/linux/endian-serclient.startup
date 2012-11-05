@@ -1,0 +1,31 @@
+#!/usr/bin/python
+from endian.job.commons import *
+
+
+class SerclientJob(Job):
+    
+    @action(name="stop",
+            )
+    def stop(self, options):
+        Job.stop(self, options)
+        if options.get("onboot"):
+            return EXIT_STATUS_STOP
+        run("/etc/init.d/serclient stop", suppress_output=True)
+        return EXIT_STATUS_STOP
+
+    @action(name="restart", 
+            exit_status="start",
+            )        
+    def restart(self, options):
+        Job.restart(self, options)
+        run("/etc/init.d/serclient restart", suppress_output=True)
+        return EXIT_STATUS_START
+
+    @action(name="start",
+            on="startup", 
+            exit_status="start", 
+            priority=11,
+            )
+    def start(self, options):
+        Job.start(self, options)
+        return self.restart(options)
