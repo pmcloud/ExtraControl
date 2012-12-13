@@ -50,7 +50,7 @@ def win32rename(src, dest):
 class WindowsService(win32serviceutil.ServiceFramework):
 	_svc_name_ = "SerialService"
 	_svc_display_name_ = "Serial Communication Manager Service"
-	_svc_deps_ = ["EventLog"]
+	_svc_deps_ = ["EventLog", "winmgmt"]
 
 	def __init__(self,args):
 		win32serviceutil.ServiceFramework.__init__(self,args)
